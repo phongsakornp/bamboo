@@ -1,8 +1,7 @@
 package haproxy
 
 import (
-	"github.com/samuel/go-zookeeper/zk"
-
+	"github.com/QubitProducts/bamboo/Godeps/_workspace/src/github.com/samuel/go-zookeeper/zk"
 	conf "github.com/QubitProducts/bamboo/configuration"
 	"github.com/QubitProducts/bamboo/services/marathon"
 	"github.com/QubitProducts/bamboo/services/service"
@@ -13,10 +12,19 @@ type templateData struct {
 	Services map[string]service.Service
 }
 
-func GetTemplateData(config *conf.Configuration, conn *zk.Conn) interface{} {
+func GetTemplateData(config *conf.Configuration, conn *zk.Conn) (interface{}, error) {
 
-	apps, _ := marathon.FetchApps(config.Marathon)
-	services, _ := service.All(conn, config.Bamboo.Zookeeper)
+	apps, err := marathon.FetchApps(config.Marathon)
 
-	return templateData{apps, services}
+	if err != nil {
+		return nil, err
+	}
+
+	services, err := service.All(conn, config.Bamboo.Zookeeper)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return templateData{apps, services}, nil
 }

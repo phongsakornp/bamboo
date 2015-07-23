@@ -18,13 +18,21 @@ It features:
 
 ### Compatibility
 
-Bamboo v0.1.1 supports Marathon 0.6 and Mesos 0.19.x
+v0.1.1 supports Marathon 0.6 and Mesos 0.19.x
 
-Bamboo v0.2.9 supports Marathon 0.7.* (with [http_callback enabled](https://mesosphere.github.io/marathon/docs/rest-api.html#event-subscriptions)) and Mesos 0.21.x. Since v0.2.2, Bamboo supports both DNS and non-DNS proxy ACL rules. v0.2.8 Supports both HTTP & TCP via custom Marathon enviroment variables (read below for details).
+v0.2.2 supports both DNS and non-DNS proxy ACL rules
+
+v0.2.8 supports both HTTP & TCP via custom Marathon enviroment variables (read below for details)
+
+v0.2.9 supports Marathon 0.7.* (with [http_callback
+enabled](https://mesosphere.github.io/marathon/docs/rest-api.html#event-subscriptions)) and Mesos 0.21.x
+
+v0.2.11 improves API, deprecate previous API endpoint
+
 
 ### Releases and changelog
 
-Since Marathon API and behaviour may change over time, espeically in this early days. You should expect we aim to catch up those changes, improve design and adding new features. We aim to maintain backwards compatibility when possible. Releases and changelog are maintained in the [releases page](https://github.com/QubitProducts/bamboo/releases). Please read them when upgrading.
+Since Marathon API and behaviour may change over time, especially in this early days. You should expect we aim to catch up those changes, improve design and adding new features. We aim to maintain backwards compatibility when possible. Releases and changelog are maintained in the [releases page](https://github.com/QubitProducts/bamboo/releases). Please read them when upgrading.
 
 ## Deployment Guide
 
@@ -81,7 +89,7 @@ This section tries to explain usage in code comment style:
   "HAProxy": {
     "TemplatePath": "/var/bamboo/haproxy_template.cfg",
     "OutputPath": "/etc/haproxy/haproxy.cfg",
-    "ReloadCommand": "read PIDS < /var/run/haproxy.pid; haproxy -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid -sf $PIDS && while ps -p $PIDS; do sleep 0.2; done"
+    "ReloadCommand": "haproxy -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid -D -sf $(cat /var/run/haproxy.pid)"
   },
   
   // Enable or disable StatsD event tracking
@@ -149,29 +157,53 @@ Shows the data structure used for rendering template
 curl -i http://localhost:8000/api/state
 ```
 
-#### POST /api/services
+#### GET /api/services
 
-Creates a service configuration for a Marathon application ID
+Shows all service configurations
 
 ```bash
-curl -i -X POST -d '{"id":"/app-1","acl":"hdr(host) -i app-1.example.com"}' http://localhost:8000/api/services
+curl -i http://localhost:8000/api/services
+```
+
+Example result:
+
+```json
+{
+    "/authentication-service": {
+        "Id": "/authentication-service",
+        "Acl": "path_beg -i /authentication-service"
+    },
+    "/payment-service": {
+        "Id": "/payment-service",
+        "Acl": "path_beg -i /payment-service"
+    }
+}
+```
+
+#### POST /api/services
+
+Creates a service configuration for a Marathon Application ID
+
+```bash
+curl -i -X POST -d '{"id":"/ExampleAppGroup/app1","acl":"hdr(host) -i app-1.example.com"}' http://localhost:8000/api/services
 ```
 
 #### PUT /api/services/:id
 
-Updates an existing service configuraiton for a Marathon application. `:id` is  URI encoded Marathon application ID
+Updates an existing or creates a new service configuration for a Marathon application. `:id` is the Marathon Application ID
 
 ```bash
-curl -i -X PUT -d '{"id":"/app-1", "acl":"path_beg -i /group/app-1"}' http://localhost:8000/api/services/%252Fapp-1
+curl -i -X PUT -d '{"id":"/ExampleAppGroup/app1", "acl":"path_beg -i /group/app-1"}' http://localhost:8000/api/services//ExampleAppGroup/app1
 ```
 
+**Note**: Create semantics are available since version 0.2.11.
 
 #### DELETE /api/services/:id
 
-Deletes an existing service configuration. `:id` is  URI encoded Marathon application ID
+Deletes an existing service configuration. `:id` Marathon Application ID
 
 ```bash
-curl -i -X DELETE http://localhost:8000/api/services/%252Fapp-1
+curl -i -X DELETE http://localhost:8000/api/services//ExampleAppGroup/app1
 ```
 
 #### GET /status
@@ -258,10 +290,10 @@ Golang:
 ```bash
 # Pakcage manager
 go get github.com/tools/godep
+# Testing Toolkit
 go get -t github.com/smartystreets/goconvey
 
-cd $GOPATH/github.com/QubitProducts/bamboo
-godep restore
+cd $GOPATH/src/github.com/QubitProducts/bamboo
 
 # Build your binary
 go build
